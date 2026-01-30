@@ -111,6 +111,14 @@ function solveCoupled3TargetIKToJson(root, targets, options = {}) {
     lambda = 0.2,       // damping
     stepScale = 0.7,
     maxStepRad = 0.15,
+    
+    // Per-joint max steps (base can take bigger steps to reach targets)
+    maxStepRadPerJoint = {
+      Base_Rotation: 2, // This will need to be ajusted for 3d   
+      Shoulder_Lift: 0.15,
+      Elbow_Flex: 0.15,
+      Wrist_Flex: 0.12,
+    },
 
     // optional limits in degrees by glb name
     limitsDeg = {
@@ -237,7 +245,10 @@ function solveCoupled3TargetIKToJson(root, targets, options = {}) {
         c.JC.x * v9[6] + c.JC.y * v9[7] + c.JC.z * v9[8];
 
       dq *= stepScale;
-      dq = clamp(dq, -maxStepRad, maxStepRad);
+      
+      // Use per-joint max step if defined, otherwise fallback to global maxStepRad
+      const jointMaxStep = maxStepRadPerJoint[j.glb] || maxStepRad;
+      dq = clamp(dq, -jointMaxStep, jointMaxStep);
 
       let next = j.obj.rotation[j.axis] + dq;
 

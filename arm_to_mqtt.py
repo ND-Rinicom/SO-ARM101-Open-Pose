@@ -15,10 +15,11 @@ MQTT_TOPIC = "watchman_robotarm/SO-ARM101"
 # ---------------- POSE CONFIG ----------------
 MODEL_PATH = "pose_landmarker_heavy.task"
 
-RIGHT_SHOULDER = 12
-RIGHT_ELBOW = 14
-RIGHT_WRIST = 16
-RIGHT_HAND = 20  # right index fingertip
+# Because webcam is mirrored, we track left arm for right arm control
+LEFT_SHOULDER = 11
+LEFT_ELBOW = 13
+LEFT_WRIST = 15
+LEFT_HAND = 19  # left index fingertip
 
 # ---------------- MQTT SETUP ----------------
 mqtt_client = mqtt.Client()
@@ -43,7 +44,7 @@ if not cap.isOpened():
     raise RuntimeError("Could not open webcam (try changing VideoCapture(0) to 1).")
 
 # Ensure the window is created with proper size
-cv2.namedWindow("Right arm → MQTT (ESC to quit)", cv2.WINDOW_NORMAL)
+cv2.namedWindow("Left arm → MQTT (ESC to quit)", cv2.WINDOW_NORMAL)
 
 t0 = time.monotonic()
 
@@ -61,6 +62,7 @@ try:
         if not ok:
             break
 
+        frame = cv2.flip(frame, 1)  # Flip horizontally
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         timestamp_ms = int((time.monotonic() - t0) * 1000)
@@ -75,10 +77,10 @@ try:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "params": {
                     "joints": {
-                        "shoulder": joint_xyz(lm[RIGHT_SHOULDER]),
-                        "elbow": joint_xyz(lm[RIGHT_ELBOW]),
-                        "wrist": joint_xyz(lm[RIGHT_WRIST]),
-                        "hand": joint_xyz(lm[RIGHT_HAND]),
+                        "shoulder": joint_xyz(lm[LEFT_SHOULDER]),
+                        "elbow": joint_xyz(lm[LEFT_ELBOW]),
+                        "wrist": joint_xyz(lm[LEFT_WRIST]),
+                        "hand": joint_xyz(lm[LEFT_HAND]),
                     }
                 }
             }
@@ -92,12 +94,12 @@ try:
 
             # Optional visual debug
             h, w, _ = frame.shape
-            for idx in [RIGHT_SHOULDER, RIGHT_ELBOW, RIGHT_WRIST, RIGHT_HAND]:
+            for idx in [LEFT_SHOULDER, LEFT_ELBOW, LEFT_WRIST, LEFT_HAND]:
                 x = int(lm[idx].x * w)
                 y = int(lm[idx].y * h)
                 cv2.circle(frame, (x, y), 6, (0, 255, 0), -1)
 
-        cv2.imshow("Right arm → MQTT (ESC to quit)", frame)
+        cv2.imshow("Left arm → MQTT (ESC to quit)", frame)
         if (cv2.waitKey(1) & 0xFF) == 27:
             break
         
