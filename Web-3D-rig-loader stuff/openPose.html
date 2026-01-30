@@ -83,7 +83,7 @@ loadModel('/Models/' + modelName).then(modelLoaded => {
       const units = message.params?.units || "degrees";
       setJointAngles(joints, units);
       return;
-    } else if (method === "set_openpose_joints") {
+    } else if (method === "set_joints_from_arm_pose") {
       // Update skeleton visualization 
       const joints = message.params?.joints || {};
       updateSkeletonLines(joints);

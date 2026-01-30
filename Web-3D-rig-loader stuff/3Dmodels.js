@@ -144,7 +144,7 @@ function loadModel(modelPath) {
               elbowPointName: "Elbow_Flex",
               wristPointName: "Wrist_Flex",
               eePointName: "EndEffector",
-              jointNames: ["Base_Rotation","Shoulder_Lift","Elbow_Flex","Wrist_Flex","Wrist_Roll"],
+              jointNames: ["Base_Rotation","Shoulder_Lift","Elbow_Flex","Wrist_Flex"],
             });
           },
           undefined,
@@ -276,6 +276,8 @@ function updateSkeletonLines(keypointData) {
   // Get Base world position
   const baseWorldPos = new THREE.Vector3();
   baseObject.getWorldPosition(baseWorldPos);
+
+  baseWorldPos.y += 0.5; // Offset base position 0.5 units higher
 
   // Calculate offset to move shoulder to base position
   const offsetX = keypointData.shoulder.x - baseWorldPos.x;

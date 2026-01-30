@@ -95,7 +95,6 @@ function solveCoupled3TargetIKToJson(root, targets, options = {}) {
       { glb: "Shoulder_Lift", axis: "x", json: "shoulder_lift" },
       { glb: "Elbow_Flex", axis: "x", json: "elbow_flex" },
       { glb: "Wrist_Flex", axis: "x", json: "wrist_flex" },
-      { glb: "Wrist_Roll", axis: "y", json: "wrist_roll" }, // can keep or remove
     ],
 
     elbowPointName = "Elbow_Point", // recommend empties; can set to "Elbow_Flex"
@@ -115,11 +114,10 @@ function solveCoupled3TargetIKToJson(root, targets, options = {}) {
 
     // optional limits in degrees by glb name
     limitsDeg = {
-      Base_Rotation: [-180, 180],
-      Shoulder_Lift: [-120, 120],
-      Elbow_Flex: [-150, 150],
-      Wrist_Flex: [-180, 180],
-      Wrist_Roll: [-180, 180],
+      Base_Rotation: [-109, 109],
+      Shoulder_Lift: [0, 190],
+      Elbow_Flex: [-180, 0],
+      Wrist_Flex: [-170, 0],
     },
   } = options;
 

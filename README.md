@@ -1,15 +1,13 @@
 # SO-ARM101-Open-Pose
-Controls the SO-ARM101 robot arm using arm movements captured by a camera with OpenPose pose estimation.
+Controls the SO-ARM101 robot arm using arm movements captured by a camera with pose estimation.
 
 ## Overview
-This project combines OpenPose for human pose detection with a 3D web-based robot arm visualization and control system. The system captures human arm movements via camera, processes them through OpenPose, and uses inverse kinematics to control a virtual robot arm model.
+This project combines human pose detection with a 3D web-based robot arm visualization and control system. The system captures human arm movements via camera and uses inverse kinematics to control a virtual robot arm model.
 
 ## Prerequisites
 - Python 3.8 or higher
 - Node.js (for web server, if needed)
 - MQTT broker (Mosquitto recommended)
-- CMake (for building OpenPose)
-- CUDA-capable GPU (recommended for OpenPose performance)
 
 ## Setup Instructions
 
@@ -20,31 +18,25 @@ cd SO-ARM101-Open-Pose
 ```
 
 ### 2. Set Up Python Environment
+1) Install Python 3.11 (Fedora)
 ```bash
-# Create virtual environment
-python -m venv .venv
-
-# Activate virtual environment
-# On Linux/Mac:
+sudo dnf install -y python3.11 python3.11-devel
+```
+2) Create a venv with Python 3.11
+```bash
+rm -rf .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
-# On Windows:
-# .venv\Scripts\activate
-
-# Install Python dependencies
-pip install -r requirements.txt
 ```
 
-### 3. Build OpenPose (Optional)
-If you need to build OpenPose from source:
-```bash
-cd openpose
-mkdir build && cd build
-cmake ..
-make -j`nproc`
-```
-Refer to [OpenPose installation guide](openpose/doc/installation/README.md) for detailed instructions.
+3) Install dependencies (now they WILL work)
+python -m pip install --upgrade pip
+python -m pip install mediapipe==0.10.32 opencv-python paho-mqtt
 
-### 4. Install MQTT Broker
+curl -L -o pose_landmarker_lite.task \
+  https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task
+
+### 3. Install MQTT Broker
 ```bash
 # On Ubuntu/Debian:
 sudo apt-get install mosquitto mosquitto-clients
@@ -57,7 +49,7 @@ sudo systemctl start mosquitto  # Linux
 brew services start mosquitto   # Mac
 ```
 
-### 5. Set Up Web Interface
+### 4. Set Up Web Interface
 The web interface uses Three.js loaded via CDN, so no additional installation is needed. Simply serve the files:
 ```bash
 # Using Python's built-in HTTP server:
@@ -88,9 +80,6 @@ Example:
 http://localhost:8000/Web-3D-rig-loader%20stuff/openPose.html?model=SO-ARM101.glb&cameraZPos=7&wireframe=0
 ```
 
-### 3. Run OpenPose
-Follow OpenPose documentation to capture pose data and publish to MQTT.
-
 ## Project Structure
 ```
 SO-ARM101-Open-Pose/
@@ -99,7 +88,6 @@ SO-ARM101-Open-Pose/
 ├── so101.urdf            # Robot arm URDF model
 ├── Models/               # 3D models (.glb files)
 ├── Mqtt/                 # MQTT JavaScript libraries
-├── openpose/             # OpenPose library
 └── Web-3D-rig-loader stuff/
     ├── 3Dmodels.js       # Main 3D rendering and IK logic
     ├── ik_solver_final.js # Inverse kinematics solver
@@ -149,6 +137,20 @@ mosquitto_pub -h 192.168.1.107 -p 1883 -t 'watchman_robotarm/SO-ARM101-new' -m '
 }'
 ```
 
+mosquitto_pub -h 192.168.1.107 -p 1883 -t 'watchman_robotarm/SO-ARM101-new' -m '{
+  "method": "set_joints_from_arm_pose",
+  "timestamp": "2026-01-28T14:32:15Z",
+  "params": {
+    "joints":{
+      "shoulder":{"x":0,"y":0,"z":0},
+      "elbow":{"x":-0.2,"y":0.8,"z":0},
+      "wrist":{"x":1,"y":0.8,"z":0},
+      "hand":{"x":1.1,"y":0.7,"z":0}    
+    }
+  }
+}'
+
+
 ## Debugging
 
 ### Check MQTT Connection
@@ -188,6 +190,3 @@ See individual component licenses (OpenPose has its own license).
 
 ## Contributors
 See [AUTHORS.md](AUTHORS.md) for contributors.
-
-
-mosquitto_pub -h 192.168.1.107 -p 1883 -t 'watchman_robotarm/SO-ARM101-new' -m '{"method":"set_openpose_joints","timestamp":"2026-01-14T15:27:05Z","params":{"units":"degrees","joints":{"shoulder":{"x":0,"y":0,"z":0},"elbow":{"x":1,"y":1,"z":0},"wrist":{"x":-0.5,"y":1.5,"z":0},"hand":{"x":-0.7,"y":1.3,"z":0}}}}'

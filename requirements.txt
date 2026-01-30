@@ -2,6 +2,7 @@
 pin
 yourdfpy
 numpy
+mediapipe
 
 # OpenPose dependencies (if using OpenPose Python API)
 opencv-python>=4.5.0
