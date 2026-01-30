@@ -86,7 +86,8 @@ loadModel('/Models/' + modelName).then(modelLoaded => {
     } else if (method === "set_joints_from_arm_pose") {
       // Update skeleton visualization 
       const joints = message.params?.joints || {};
-      updateSkeletonLines(joints);
+      const timestamp = message.timestamp;
+      updateSkeletonLines(joints, timestamp);
 
       // Then solve IK and set joint angles
       //goToTargets(joints);

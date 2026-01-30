@@ -27,6 +27,11 @@ let shoulderToElbowLine = null;  // Green
 let elbowToWristLine = null;     // Red
 let wristToHandLine = null;      // Blue
 
+let lastIKTimestamp = null; // Last timestamp when IK was run
+const IK_UPDATE_INTERVAL_MS = 150; // Run IK every 150ms
+
+let lastSuccessfulIKTime = null; // Last time IK was successfully applied (not rejected)
+
 const outlineMap = new WeakMap(); // mesh -> lineSegments
 
 const OUTLINE_COLOR = 0x000000;
@@ -258,7 +263,8 @@ function createSkeletonLines() {
 
 // Update skeleton lines with new keypoint data
 // keypointData should be: { shoulder: {x, y, z}, elbow: {x, y, z}, wrist: {x, y, z}, hand: {x, y, z} }
-function updateSkeletonLines(keypointData) {
+// timestamp: ISO 8601 timestamp string from the message
+function updateSkeletonLines(keypointData, timestamp = null) {
   // Create lines if they don't exist
   if (!shoulderToElbowLine || !elbowToWristLine || !wristToHandLine) {
     createSkeletonLines();
@@ -328,8 +334,48 @@ function updateSkeletonLines(keypointData) {
     positions3.needsUpdate = true;
   }
 
-  // Call IK solver with offset-adjusted targets
-  if (keypointData.elbow && keypointData.wrist && keypointData.hand) {
+  // Call IK solver with offset-adjusted targets (only if enough time has passed)
+  let shouldRunIK = false;
+  let timeSinceLastSuccessfulIK = 0;
+  
+  if (timestamp) {
+    const currentTime = new Date(timestamp).getTime();
+    
+    // Calculate time since last successful IK (not just pose update)
+    if (lastSuccessfulIKTime) {
+      timeSinceLastSuccessfulIK = currentTime - lastSuccessfulIKTime;
+    }
+    
+    // Check if we should run IK based on interval OR if there's been a long gap
+    const timeSinceLastIK = lastIKTimestamp ? currentTime - lastIKTimestamp : Infinity;
+    
+    if (timeSinceLastIK >= IK_UPDATE_INTERVAL_MS) {
+      // Normal interval check
+      shouldRunIK = true;
+      lastIKTimestamp = currentTime;
+    }
+  } else {
+    // Fallback: always run if no timestamp provided
+    shouldRunIK = true;
+  }
+
+  if (shouldRunIK && keypointData.elbow && keypointData.wrist && keypointData.hand) {
+    // Adjust IK parameters based on time since last successful IK
+    let ikOptions = {
+      elbowPointName: "Elbow_Flex",
+      wristPointName: "Wrist_Flex",
+      eePointName: "EndEffector",
+    };
+    
+    // If it's been more than 500ms since last successful IK, increase iterations
+    if (timeSinceLastSuccessfulIK > 500) {
+      ikOptions.iterations = 60; // More iterations for big jumps
+      ikOptions.tolerance = 0.01; // Slightly relaxed tolerance
+      console.log(`Long gap since successful IK (${timeSinceLastSuccessfulIK}ms), using ${ikOptions.iterations} iterations`);
+    } else if (timeSinceLastSuccessfulIK > 200) {
+      ikOptions.iterations = 50; // Moderate increase
+    }
+    
     goToTargets({
       elbow: {
         x: keypointData.elbow.x - offsetX,
@@ -346,7 +392,7 @@ function updateSkeletonLines(keypointData) {
         y: keypointData.hand.y - offsetY,
         z: keypointData.hand.z - offsetZ
       }
-    });
+    }, ikOptions, timestamp);
   }
 
   // Render the scene
@@ -374,11 +420,26 @@ function setCameraPosition(zPos = 1) {
 
 // --- INVERSE KINEMATICS SOLVER ---
 
+const MAX_IK_ERROR = 0.6; // Maximum acceptable error in meters (60cm)
+
 // Sets arm joints to reach target position
-function goToTargets(targets){
+function goToTargets(targets, ikOptions = {}, timestamp = null){
   console.log("Solving IK to reach target:", targets);
 
-  // ===== Example usage =====
+  // Save current joint state in case we need to reject the IK solution
+  const savedJointAngles = {};
+  const jointNames = ["Base_Rotation", "Shoulder_Lift", "Elbow_Flex", "Wrist_Flex"];
+  for (const name of jointNames) {
+    const obj = objectsByName.get(name);
+    if (obj) {
+      savedJointAngles[name] = {
+        x: obj.rotation.x,
+        y: obj.rotation.y,
+        z: obj.rotation.z
+      };
+    }
+  }
+
   const my_targets = {
   elbowTargetWorld: new THREE.Vector3( targets.elbow.x, targets.elbow.y, targets.elbow.z),
   wristTargetWorld: new THREE.Vector3( targets.wrist.x, targets.wrist.y, targets.wrist.z),
@@ -393,7 +454,56 @@ function goToTargets(targets){
     elbowPointName: "Elbow_Flex",
     wristPointName: "Wrist_Flex",
     eePointName: "EndEffector",
+    ...ikOptions, // Merge in any custom options (iterations, tolerance, etc.)
   });
+
+  // Validate the IK solution by checking final errors
+  model.updateMatrixWorld(true);
+  
+  const elbowObj = objectsByName.get("Elbow_Flex");
+  const wristObj = objectsByName.get("Wrist_Flex");
+  const eeObj = objectsByName.get("EndEffector");
+  
+  if (elbowObj && wristObj && eeObj) {
+    const elbowPos = new THREE.Vector3();
+    const wristPos = new THREE.Vector3();
+    const eePos = new THREE.Vector3();
+    
+    elbowObj.getWorldPosition(elbowPos);
+    wristObj.getWorldPosition(wristPos);
+    eeObj.getWorldPosition(eePos);
+    
+    const elbowError = elbowPos.distanceTo(my_targets.elbowTargetWorld);
+    const wristError = wristPos.distanceTo(my_targets.wristTargetWorld);
+    const eeError = eePos.distanceTo(my_targets.eeTargetWorld);
+    
+    const maxError = Math.max(elbowError, wristError, eeError);
+    
+    if (maxError > MAX_IK_ERROR) {
+      console.warn(`IK solution rejected: max error ${maxError.toFixed(3)}m exceeds threshold ${MAX_IK_ERROR}m`);
+      console.warn(`  Elbow error: ${elbowError.toFixed(3)}m, Wrist error: ${wristError.toFixed(3)}m, EE error: ${eeError.toFixed(3)}m`);
+      
+      // Restore previous joint angles
+      for (const name of jointNames) {
+        const obj = objectsByName.get(name);
+        if (obj && savedJointAngles[name]) {
+          obj.rotation.x = savedJointAngles[name].x;
+          obj.rotation.y = savedJointAngles[name].y;
+          obj.rotation.z = savedJointAngles[name].z;
+        }
+      }
+      model.updateMatrixWorld(true);
+      renderer.render(scene, camera);
+      return; // Don't apply the solution
+    }
+    
+    console.log(`IK solution accepted: max error ${maxError.toFixed(3)}m (elbow: ${elbowError.toFixed(3)}m, wrist: ${wristError.toFixed(3)}m, ee: ${eeError.toFixed(3)}m)`);
+    
+    // Update successful IK time
+    if (timestamp) {
+      lastSuccessfulIKTime = new Date(timestamp).getTime();
+    }
+  }
 
   console.log(cmd);
   setJointAngles(cmd.joints, cmd.units);

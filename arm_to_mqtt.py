@@ -51,8 +51,8 @@ t0 = time.monotonic()
 def joint_xyz(lm):
     """Return dict with x,y,z (z fixed to 0 for now)."""
     return {
-        "x": float(lm.x)*2.5,
-        "y": -(float(lm.y)*2.5),
+        "x": float(lm.x)*1.7,
+        "y": -(float(lm.y)*1.7),
         "z": 0.0
     }
 

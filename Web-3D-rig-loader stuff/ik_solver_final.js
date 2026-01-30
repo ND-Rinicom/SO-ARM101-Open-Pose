@@ -102,9 +102,9 @@ function solveCoupled3TargetIKToJson(root, targets, options = {}) {
     eePointName = "EndEffector",
 
     // weights: prioritize downstream if needed
-    wA = 0.5, // elbow target weight
-    wB = 1.0, // wrist target weight
-    wC = 1.5, // EE target weight
+    wA = 1.4, // elbow target weight
+    wB = 1.3, // wrist target weight
+    wC = 0.5, // EE target weight
 
     iterations = 40,
     tolerance = 0.005,  // meters
@@ -245,6 +245,11 @@ function solveCoupled3TargetIKToJson(root, targets, options = {}) {
         c.JC.x * v9[6] + c.JC.y * v9[7] + c.JC.z * v9[8];
 
       dq *= stepScale;
+      
+      // Invert base rotation - robot arm rotates away from target
+      if (j.glb === "Base_Rotation") {
+        dq = -dq;
+      }
       
       // Use per-joint max step if defined, otherwise fallback to global maxStepRad
       const jointMaxStep = maxStepRadPerJoint[j.glb] || maxStepRad;
