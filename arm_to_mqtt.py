@@ -3,6 +3,7 @@ import json
 import cv2
 import mediapipe as mp
 import paho.mqtt.client as mqtt
+import argparse
 from datetime import datetime, timezone
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -14,6 +15,36 @@ MQTT_TOPIC = "watchman_robotarm/SO-ARM101"
 
 # ---------------- POSE CONFIG ----------------
 MODEL_PATH = "pose_landmarker_heavy.task"
+
+# ---------------- ARGUMENT PARSING ----------------
+parser = argparse.ArgumentParser(description="Track arm pose and send to MQTT")
+parser.add_argument(
+    "--video",
+    type=str,
+    default="0",
+    help="Video source: webcam index (0, 1, ...) or path to video file (default: 0)"
+)
+parser.add_argument(
+    "--width",
+    type=int,
+    default=1280,
+    help="Webcam resolution width (default: 1280)"
+)
+parser.add_argument(
+    "--height",
+    type=int,
+    default=720,
+    help="Webcam resolution height (default: 720)"
+)
+args = parser.parse_args()
+
+# Determine video source
+try:
+    video_source = int(args.video)  # Try as webcam index
+    source_name = f"Webcam {video_source}"
+except ValueError:
+    video_source = args.video  # Use as file path
+    source_name = args.video
 
 # Because webcam is mirrored, we track left arm for right arm control
 LEFT_SHOULDER = 11
@@ -39,12 +70,25 @@ options = vision.PoseLandmarkerOptions(
 
 landmarker = vision.PoseLandmarker.create_from_options(options)
 
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(video_source)
 if not cap.isOpened():
-    raise RuntimeError("Could not open webcam (try changing VideoCapture(0) to 1).")
+    raise RuntimeError(f"Could not open video source: {source_name}")
+
+# Set resolution for webcam (not needed for video files)
+if isinstance(video_source, int):
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, args.height)
+    actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"Using video source: {source_name} at {actual_width}x{actual_height}")
+else:
+    actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"Using video source: {source_name} at {actual_width}x{actual_height}")
 
 # Ensure the window is created with proper size
-cv2.namedWindow("Left arm → MQTT (ESC to quit)", cv2.WINDOW_NORMAL)
+window_title = f"Left arm → MQTT (ESC to quit) - {source_name}"
+cv2.namedWindow(window_title, cv2.WINDOW_NORMAL)
 
 t0 = time.monotonic()
 
@@ -99,11 +143,12 @@ try:
                 y = int(lm[idx].y * h)
                 cv2.circle(frame, (x, y), 6, (0, 255, 0), -1)
 
-        cv2.imshow("Left arm → MQTT (ESC to quit)", frame)
-        if (cv2.waitKey(1) & 0xFF) == 27:
-            break
+        cv2.imshow(window_title, frame)
         
-        # time.sleep(0.033)  # Limit to ~30 updates per second
+        # For video files, use normal playback speed; for webcam, minimal delay
+        wait_time = 30 if isinstance(video_source, str) else 1
+        if (cv2.waitKey(wait_time) & 0xFF) == 27:
+            break
 except KeyboardInterrupt:
     pass
 finally:

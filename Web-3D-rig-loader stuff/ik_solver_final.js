@@ -102,8 +102,8 @@ function solveCoupled3TargetIKToJson(root, targets, options = {}) {
     eePointName = "EndEffector",
 
     // weights: prioritize downstream if needed
-    wA = 1.4, // elbow target weight
-    wB = 1.3, // wrist target weight
+    wA = 1.5, // elbow target weight
+    wB = 1.2, // wrist target weight
     wC = 0.5, // EE target weight
 
     iterations = 40,

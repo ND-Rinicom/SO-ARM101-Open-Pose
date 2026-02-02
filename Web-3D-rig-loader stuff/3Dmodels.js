@@ -251,6 +251,16 @@ function createSkeletonLines() {
   elbowToWristLine = new THREE.Line(geometry2, redMaterial);
   wristToHandLine = new THREE.Line(geometry3, blueMaterial);
 
+  // Set render order to ensure lines render on top of the model
+  shoulderToElbowLine.renderOrder = 100;
+  elbowToWristLine.renderOrder = 100;
+  wristToHandLine.renderOrder = 100;
+
+  // Disable depth test so lines always render on top
+  greenMaterial.depthTest = false;
+  redMaterial.depthTest = false;
+  blueMaterial.depthTest = false;
+
   // Add to scene
   scene.add(shoulderToElbowLine);
   scene.add(elbowToWristLine);
