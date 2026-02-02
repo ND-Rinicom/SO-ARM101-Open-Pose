@@ -4,9 +4,6 @@ yourdfpy
 numpy
 mediapipe
 
-# OpenPose dependencies (if using OpenPose Python API)
-opencv-python>=4.5.0
-
 # MQTT communication
 paho-mqtt>=1.6.0
 

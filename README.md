@@ -10,14 +10,6 @@ This project combines human pose detection with a 3D web-based robot arm visuali
 - MQTT broker (Mosquitto recommended)
 
 ## Setup Instructions
-
-### 1. Clone the Repository
-```bash
-git clone <your-repo-url>
-cd SO-ARM101-Open-Pose
-```
-
-### 2. Set Up Python Environment
 1) Install Python 3.11 (Fedora)
 ```bash
 sudo dnf install -y python3.11 python3.11-devel
@@ -28,56 +20,13 @@ rm -rf .venv
 python3.11 -m venv .venv
 source .venv/bin/activate
 ```
-
-3) Install dependencies (now they WILL work)
+3) Install dependencies 
+```bash
 python -m pip install --upgrade pip
 python -m pip install mediapipe==0.10.32 opencv-python paho-mqtt
 
 curl -L -o pose_landmarker_lite.task \
-  https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task
-
-### 3. Install MQTT Broker
-```bash
-# On Ubuntu/Debian:
-sudo apt-get install mosquitto mosquitto-clients
-
-# On Mac:
-brew install mosquitto
-
-# Start the broker:
-sudo systemctl start mosquitto  # Linux
-brew services start mosquitto   # Mac
-```
-
-### 4. Set Up Web Interface
-The web interface uses Three.js loaded via CDN, so no additional installation is needed. Simply serve the files:
-```bash
-# Using Python's built-in HTTP server:
-python -m http.server 8000
-
-# Or use any other web server of your choice
-```
-
-## Running the Project
-
-### 1. Start the MQTT Broker
-Ensure your MQTT broker is running on the default port (1883).
-
-### 2. Open the Web Interface
-Navigate to:
-```
-http://localhost:8000/Web-3D-rig-loader%20stuff/openPose.html
-```
-
-Optional URL parameters:
-- `model` - 3D model filename (default: SO-ARM101.glb)
-- `xPos`, `yPos`, `zPos` - Model position (default: 0,0,0)
-- `cameraZPos` - Camera Z position (default: 1)
-- `wireframe` - Render mode: 0=ghost, 1=wireframe (default: 0)
-
-Example:
-```
-http://localhost:8000/Web-3D-rig-loader%20stuff/openPose.html?model=SO-ARM101.glb&cameraZPos=7&wireframe=0
+  https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_lite.task
 ```
 
 ## Project Structure
@@ -85,7 +34,6 @@ http://localhost:8000/Web-3D-rig-loader%20stuff/openPose.html?model=SO-ARM101.gl
 SO-ARM101-Open-Pose/
 ├── README.md              # This file
 ├── requirements.txt       # Python dependencies
-├── so101.urdf            # Robot arm URDF model
 ├── Models/               # 3D models (.glb files)
 ├── Mqtt/                 # MQTT JavaScript libraries
 └── Web-3D-rig-loader stuff/
