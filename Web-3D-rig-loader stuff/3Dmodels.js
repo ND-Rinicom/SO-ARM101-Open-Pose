@@ -27,6 +27,11 @@ let shoulderToElbowLine = null;  // Green
 let elbowToWristLine = null;     // Red
 let wristToHandLine = null;      // Blue
 
+// Skeleton spheres for keypoints (elbow, wrist, hand)
+let elbowSphere = null;  // Green
+let wristSphere = null;  // Red
+let handSphere = null;   // Blue
+
 const outlineMap = new WeakMap(); // mesh -> lineSegments
 
 const OUTLINE_COLOR = 0x000000;
@@ -222,6 +227,11 @@ function createSkeletonLines() {
   if (elbowToWristLine) scene.remove(elbowToWristLine);
   if (wristToHandLine) scene.remove(wristToHandLine);
 
+  // Remove existing spheres if they exist
+  if (elbowSphere) scene.remove(elbowSphere);
+  if (wristSphere) scene.remove(wristSphere);
+  if (handSphere) scene.remove(handSphere);
+
   // Create line materials
   const greenMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
   const redMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 });
@@ -261,7 +271,37 @@ function createSkeletonLines() {
   scene.add(elbowToWristLine);
   scene.add(wristToHandLine);
 
-  console.log("Skeleton lines created");
+  // Create spheres for keypoints (radius 0.012 meters)
+  const sphereGeometry = new THREE.SphereGeometry(0.012, 30, 30);
+  
+  const greenSphereMaterial = new THREE.MeshBasicMaterial({ 
+    color: 0x00ff00, 
+    depthTest: false 
+  });
+  const redSphereMaterial = new THREE.MeshBasicMaterial({ 
+    color: 0xff0000, 
+    depthTest: false 
+  });
+  const blueSphereMaterial = new THREE.MeshBasicMaterial({ 
+    color: 0x0000ff, 
+    depthTest: false 
+  });
+
+  elbowSphere = new THREE.Mesh(sphereGeometry, greenSphereMaterial);
+  wristSphere = new THREE.Mesh(sphereGeometry, redSphereMaterial);
+  handSphere = new THREE.Mesh(sphereGeometry, blueSphereMaterial);
+
+  // Set render order to ensure spheres render on top
+  elbowSphere.renderOrder = 999;
+  wristSphere.renderOrder = 999;
+  handSphere.renderOrder = 999;
+
+  // Add spheres to scene
+  scene.add(elbowSphere);
+  scene.add(wristSphere);
+  scene.add(handSphere);
+
+  console.log("Skeleton lines and spheres created");
 }
 
 // Update skeleton lines with new keypoint data
@@ -335,6 +375,29 @@ function updateSkeletonLines(keypointData, timestamp = null) {
       keypointData.hand.z - offsetZ
     );
     positions3.needsUpdate = true;
+  }
+
+  // Update sphere positions
+  if (keypointData.elbow) {
+    elbowSphere.position.set(
+      keypointData.elbow.x - offsetX,
+      keypointData.elbow.y - offsetY,
+      keypointData.elbow.z - offsetZ
+    );
+  }
+  if (keypointData.wrist) {
+    wristSphere.position.set(
+      keypointData.wrist.x - offsetX,
+      keypointData.wrist.y - offsetY,
+      keypointData.wrist.z - offsetZ
+    );
+  }
+  if (keypointData.hand) {
+    handSphere.position.set(
+      keypointData.hand.x - offsetX,
+      keypointData.hand.y - offsetY,
+      keypointData.hand.z - offsetZ
+    );
   }
 
   // Calculate joint angles directly from pose (no IK needed)

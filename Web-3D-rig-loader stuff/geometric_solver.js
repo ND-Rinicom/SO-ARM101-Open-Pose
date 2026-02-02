@@ -19,9 +19,6 @@ function calculateJointAnglesFromPose(keypoints, options = {}) {
       Elbow_Flex: [-180, 0],
       Wrist_Flex: [-170, 0],
     },
-    // Validation thresholds
-    minSegmentLength = 0.1, // meters - reject if segments are too short (unreliable)
-    maxSegmentLength = 2.0, // meters - reject if segments are too long (unrealistic)
   } = options;
 
   const { shoulder, elbow, wrist, hand } = keypoints;
@@ -35,18 +32,6 @@ function calculateJointAnglesFromPose(keypoints, options = {}) {
   const shoulderToElbow = new THREE.Vector3().subVectors(elbow, shoulder);
   const elbowToWrist = new THREE.Vector3().subVectors(wrist, elbow);
   const wristToHand = new THREE.Vector3().subVectors(hand, wrist);
-
-  // Validate segment lengths
-  const seg1Len = shoulderToElbow.length();
-  const seg2Len = elbowToWrist.length();
-  const seg3Len = wristToHand.length();
-
-  if (seg1Len < minSegmentLength || seg1Len > maxSegmentLength ||
-      seg2Len < minSegmentLength || seg2Len > maxSegmentLength ||
-      seg3Len < minSegmentLength || seg3Len > maxSegmentLength) {
-    console.warn(`Invalid segment lengths: ${seg1Len.toFixed(3)}m, ${seg2Len.toFixed(3)}m, ${seg3Len.toFixed(3)}m`);
-    return null;
-  }
 
   // --- BASE ROTATION (Y-axis) ---
   // Rotation in the XZ plane from shoulder to elbow (negate X to fix mirroring)

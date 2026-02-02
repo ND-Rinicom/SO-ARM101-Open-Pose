@@ -67,16 +67,6 @@ function createIKDebugRig(scene, root, names, opts = {}) {
   } = opts;
 
   const rig = {
-    // current points
-    elbowSphere: makeDebugSphere(pointRadius),
-    wristSphere: makeDebugSphere(pointRadius),
-    eeSphere: makeDebugSphere(pointRadius),
-
-    // targets (A=green, B=red, C=blue)
-    elbowTargetSphere: makeDebugSphere(pointRadius, 0x00ff00), // Target A - Green
-    wristTargetSphere: makeDebugSphere(pointRadius, 0xff0000), // Target B - Red
-    eeTargetSphere: makeDebugSphere(pointRadius, 0x0000ff),    // Target C - Blue
-
     // error lines
     elbowLine: makeDebugLine(),
     wristLine: makeDebugLine(),
@@ -88,8 +78,6 @@ function createIKDebugRig(scene, root, names, opts = {}) {
 
   // add to scene (world space)
   scene.add(
-    rig.elbowSphere, rig.wristSphere, rig.eeSphere,
-    rig.elbowTargetSphere, rig.wristTargetSphere, rig.eeTargetSphere,
     rig.elbowLine, rig.wristLine, rig.eeLine,
   );
 
@@ -119,14 +107,6 @@ function updateIKDebugRig(rig, targets) {
   const pElbow = getWorldPos(elbowObj);
   const pWrist = getWorldPos(wristObj);
   const pEE    = getWorldPos(eeObj);
-
-  rig.elbowSphere.position.copy(pElbow);
-  rig.wristSphere.position.copy(pWrist);
-  rig.eeSphere.position.copy(pEE);
-
-  rig.elbowTargetSphere.position.copy(targets.targetA);
-  rig.wristTargetSphere.position.copy(targets.targetB);
-  rig.eeTargetSphere.position.copy(targets.targetC);
 
   updateLine(rig.elbowLine, pElbow, targets.targetA);
   updateLine(rig.wristLine, pWrist, targets.targetB);

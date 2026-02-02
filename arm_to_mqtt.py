@@ -57,15 +57,41 @@ mqtt_client = mqtt.Client()
 mqtt_client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
 mqtt_client.loop_start()
 
+# ---------------- SMOOTHING CONFIG ----------------
+SMOOTHING_FACTOR = 0.5  # Lower = smoother but more lag (0.1-0.5 recommended)
+DEAD_ZONE = 0.01  # Ignore changes smaller than this (in normalized coords)
+
+# Store previous joint positions for smoothing
+prev_joints = None
+
+def smooth_landmark(prev_lm, curr_lm, alpha=SMOOTHING_FACTOR):
+    """Apply exponential moving average to landmark coordinates."""
+    if prev_lm is None:
+        return {"x": curr_lm.x, "y": curr_lm.y, "z": curr_lm.z}
+    
+    # Check if change is significant enough (dead-zone filtering)
+    dx = abs(curr_lm.x - prev_lm["x"])
+    dy = abs(curr_lm.y - prev_lm["y"])
+    
+    if dx < DEAD_ZONE and dy < DEAD_ZONE:
+        return prev_lm  # Keep previous position
+    
+    # Apply EMA smoothing: new_value = alpha * current + (1-alpha) * previous
+    return {
+        "x": alpha * curr_lm.x + (1 - alpha) * prev_lm["x"],
+        "y": alpha * curr_lm.y + (1 - alpha) * prev_lm["y"],
+        "z": alpha * curr_lm.z + (1 - alpha) * prev_lm["z"]
+    }
+
 # ---------------- MEDIAPIPE SETUP ----------------
 base_options = python.BaseOptions(model_asset_path=MODEL_PATH)
 options = vision.PoseLandmarkerOptions(
     base_options=base_options,
     running_mode=vision.RunningMode.VIDEO,
     num_poses=1,
-    min_pose_detection_confidence=0.5,
-    min_pose_presence_confidence=0.5,
-    min_tracking_confidence=0.5,
+    min_pose_detection_confidence=0.7,  # Increased from 0.5
+    min_pose_presence_confidence=0.7,   # Increased from 0.5
+    min_tracking_confidence=0.7,        # Increased from 0.5
 )
 
 landmarker = vision.PoseLandmarker.create_from_options(options)
@@ -93,13 +119,25 @@ cv2.namedWindow(window_title, cv2.WINDOW_NORMAL)
 t0 = time.monotonic()
 
 def joint_xyz(lm):
-    """Return dict with x,y,z (z fixed to 0 for now)."""
+    """Return dict with x,y,z from smoothed landmark (z fixed to 0 for now)."""
     return {
-        "x": float(lm.x)*1.7,
-        "y": -(float(lm.y)*1.7),
+        "x": float(lm["x"])*2,
+        "y": -(float(lm["y"])*2),
         "z": 0.0
     }
-
+def extend_hand_position(wrist, hand, extension_factor=1.7):
+    """Extend hand position along wrist-to-hand direction."""
+    # Calculate direction vector from wrist to hand
+    dx = hand["x"] - wrist["x"]
+    dy = hand["y"] - wrist["y"]
+    dz = hand["z"] - wrist["z"]
+    
+    # Extend the hand position by multiplying the direction vector
+    return {
+        "x": wrist["x"] + dx * extension_factor,
+        "y": wrist["y"] + dy * extension_factor,
+        "z": wrist["z"] + dz * extension_factor,
+    }
 try:
     while True:
         ok, frame = cap.read()
@@ -116,15 +154,33 @@ try:
         if result.pose_landmarks:
             lm = result.pose_landmarks[0]
 
+            # Initialize or update smoothed joint positions
+            if prev_joints is None:
+                prev_joints = {
+                    "shoulder": {"x": lm[LEFT_SHOULDER].x, "y": lm[LEFT_SHOULDER].y, "z": lm[LEFT_SHOULDER].z},
+                    "elbow": {"x": lm[LEFT_ELBOW].x, "y": lm[LEFT_ELBOW].y, "z": lm[LEFT_ELBOW].z},
+                    "wrist": {"x": lm[LEFT_WRIST].x, "y": lm[LEFT_WRIST].y, "z": lm[LEFT_WRIST].z},
+                    "hand": {"x": lm[LEFT_HAND].x, "y": lm[LEFT_HAND].y, "z": lm[LEFT_HAND].z},
+                }
+            else:
+                # Apply smoothing to each joint
+                prev_joints["shoulder"] = smooth_landmark(prev_joints["shoulder"], lm[LEFT_SHOULDER])
+                prev_joints["elbow"] = smooth_landmark(prev_joints["elbow"], lm[LEFT_ELBOW])
+                prev_joints["wrist"] = smooth_landmark(prev_joints["wrist"], lm[LEFT_WRIST])
+                prev_joints["hand"] = smooth_landmark(prev_joints["hand"], lm[LEFT_HAND])
+
+            # Extend hand position to fingertips
+            extended_hand = extend_hand_position(prev_joints["wrist"], prev_joints["hand"], extension_factor=2.0)
+            
             payload = {
                 "method": "set_joints_from_arm_pose",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "params": {
                     "joints": {
-                        "shoulder": joint_xyz(lm[LEFT_SHOULDER]),
-                        "elbow": joint_xyz(lm[LEFT_ELBOW]),
-                        "wrist": joint_xyz(lm[LEFT_WRIST]),
-                        "hand": joint_xyz(lm[LEFT_HAND]),
+                        "shoulder": joint_xyz(prev_joints["shoulder"]),
+                        "elbow": joint_xyz(prev_joints["elbow"]),
+                        "wrist": joint_xyz(prev_joints["wrist"]),
+                        "hand": joint_xyz(extended_hand),
                     }
                 }
             }
@@ -136,12 +192,28 @@ try:
                 retain=False
             )
 
-            # Optional visual debug
+            # Visual debug with colored lines and spheres
             h, w, _ = frame.shape
-            for idx in [LEFT_SHOULDER, LEFT_ELBOW, LEFT_WRIST, LEFT_HAND]:
-                x = int(lm[idx].x * w)
-                y = int(lm[idx].y * h)
-                cv2.circle(frame, (x, y), 6, (0, 255, 0), -1)
+            
+            # Get pixel coordinates for each joint (using smoothed positions and extended hand)
+            shoulder_px = (int(prev_joints["shoulder"]["x"] * w), int(prev_joints["shoulder"]["y"] * h))
+            elbow_px = (int(prev_joints["elbow"]["x"] * w), int(prev_joints["elbow"]["y"] * h))
+            wrist_px = (int(prev_joints["wrist"]["x"] * w), int(prev_joints["wrist"]["y"] * h))
+            hand_px = (int(extended_hand["x"] * w), int(extended_hand["y"] * h))
+            
+            # Draw lines with matching colors (BGR format in OpenCV)
+            # Green: shoulder to elbow
+            cv2.line(frame, shoulder_px, elbow_px, (0, 255, 0), 3)
+            # Red: elbow to wrist
+            cv2.line(frame, elbow_px, wrist_px, (0, 0, 255), 3)
+            # Blue: wrist to hand
+            cv2.line(frame, wrist_px, hand_px, (255, 0, 0), 3)
+            
+            # Draw colored circles at keypoints
+            cv2.circle(frame, shoulder_px, 8, (255, 255, 255), -1)  # White for shoulder (base)
+            cv2.circle(frame, elbow_px, 8, (0, 255, 0), -1)          # Green for elbow
+            cv2.circle(frame, wrist_px, 8, (0, 0, 255), -1)          # Red for wrist
+            cv2.circle(frame, hand_px, 8, (255, 0, 0), -1)           # Blue for hand
 
         cv2.imshow(window_title, frame)
         
