@@ -69,17 +69,17 @@ Send joint angles directly to the robot arm:
 
 mosquitto_pub -h 192.168.1.107 -p 1883 -t 'watchman_robotarm/SO-ARM101-new' -m '{
   "method": "set_joint_angles",
-  "timestamp": "2026-01-28T14:32:15Z",
+  "timestamp": "2026-01-14T15:27:05Z",
   "params": {
     "units": "degrees",
-    "mode": "follower",
     "joints": {
-      "Base_Rotation": { "y": 0 },
-      "Shoulder_Lift": { "x": 0 },
-      "Elbow_Flex": { "x": 0 },
-      "Wrist_Flex": { "x": 0 },
-      "Wrist_Roll": { "y": 0 },
-      "Gripper": { "z": 0 }
+      "base": { "y": 0 },
+      "shoulder_pan": { "y": 0 },
+      "shoulder_lift": { "x": 0 },
+      "elbow_flex": { "x": 0 },
+      "wrist_flex": { "x": 0 },
+      "wrist_roll": { "y": 0 },
+      "gripper": { "z": 0 },
     }
   }
 }'
